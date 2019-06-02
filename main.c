@@ -56,9 +56,6 @@ FILE* goodpopen(char* const _args[]){
 	if (pipe(_crossFiles)!=0){
 		return NULL;
 	}
-
-	//close(_crossFiles[1]); // Close the one for writing
-
 	pid_t _newProcess = fork();
 	if (_newProcess==-1){
 		close(_crossFiles[0]);
@@ -129,10 +126,13 @@ int main(int argc, char const *argv[]){
 		}
 		// Hit up cmus-remote to see if we've got a new song
 		FILE* _cmusRes = goodpopen(_programArgs);
+		char _foundFile=0;
 		while (!feof(_cmusRes)){
+			printf("a\n");
 			if (fgetc(_cmusRes)!='f'){
 				seekNextLine(_cmusRes);
 			}else{
+				_foundFile=1;
 				seekPast(_cmusRes,' '); // Seek to the end of 'file '
 				char* _readFile=NULL;
 				size_t _readLen=0;
@@ -234,25 +234,46 @@ int main(int argc, char const *argv[]){
 				}
 			}
 		}
+		if (!_foundFile){ // If cmus isn't running you wouldn't find a file
+			if (_currentImage){
+				SDL_DestroyTexture(_currentImage);
+				_currentImage=NULL;
+			}
+			free(_currentFilename);
+			_currentFilename=NULL;
+		}
 		fclose(_cmusRes);
 
 		SDL_SetRenderDrawColor(mainWindowRenderer,0,0,0,255);
 		SDL_RenderClear(mainWindowRenderer);
-		if (_currentImage==NULL){
-			SDL_SetRenderDrawColor(mainWindowRenderer,255,0,0,255);
-			SDL_Rect tempRect;
-			tempRect.x=0;
-			tempRect.y=0;
-			tempRect.w=32;
-			tempRect.h=32;
-			SDL_RenderFillRect(mainWindowRenderer,&tempRect);
-		}else{
+		if (_currentImage!=NULL){
 			SDL_Rect _srcRect;
-			SDL_Rect _destRect;
-			SDL_QueryTexture(_currentImage, NULL, NULL, &(_srcRect.w), &(_srcRect.h));
 			_srcRect.x=0;
 			_srcRect.y=0;
-			_destRect=_srcRect;
+			SDL_QueryTexture(_currentImage, NULL, NULL, &(_srcRect.w), &(_srcRect.h));
+
+			SDL_Rect _destRect;
+			int _windowWidth;
+			int _windowHeight;
+			SDL_GetWindowSize(mainWindow,&_windowWidth,&_windowHeight);
+			_windowWidth-=PIXELPADDING*2;
+			_windowHeight-=PIXELPADDING*2;
+
+			int _imgW;
+			int _imgH;
+			SDL_QueryTexture(_currentImage,NULL,NULL,&_imgW,&_imgH);
+
+			double _scaleFactor;
+			if (_windowWidth/(double)_imgW<_windowHeight/(double)_imgH){
+				_scaleFactor=_windowWidth/(double)_imgW;
+			}else{
+				_scaleFactor=_windowHeight/(double)_imgH;
+			}
+			_destRect.w=_srcRect.w*_scaleFactor;
+			_destRect.h=_srcRect.h*_scaleFactor;
+			_destRect.x=PIXELPADDING+(_windowWidth-_destRect.w)/2;
+			_destRect.y=PIXELPADDING+(_windowHeight-_destRect.h)/2;
+
 			SDL_RenderCopy(mainWindowRenderer, _currentImage, &_srcRect, &_destRect );
 		}
 		SDL_RenderPresent(mainWindowRenderer);
