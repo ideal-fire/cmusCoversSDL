@@ -5,11 +5,8 @@
 #include <dirent.h>
 #include <string.h>
 #include <errno.h>
-#include <stddef.h>
-#include <stdarg.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <fcntl.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include "config.h"
