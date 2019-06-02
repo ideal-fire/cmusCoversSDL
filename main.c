@@ -12,30 +12,7 @@
 #include <fcntl.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
-#define RECHECKMILLI 1000
-
-#define PIXELPADDING 5
-
-#define SAMEASSONGNAMECOVER 1 // 1 if you will allow a cover to a song to be the same filename as the song, just with an image extension. For example, bla.jpg as a cover for bla.wav.
-
-// Should all end in a dot and be lowercase
-#define NUMCOVERFILENAMES 2
-char* coverFilenames[NUMCOVERFILENAMES] = {
-	"cover.",
-	"folder.",
-};
-#define NUMEXTENSIONS 2
-// Lowercase and do not have a dot
-char* loadableExtensions[NUMEXTENSIONS] = {
-	"jpg",
-	"png",
-};
-
-char* const _programArgs[] = {
-	"/usr/bin/cmus-remote",
-	"-Q",
-	NULL,
-};
+#include "config.h"
 
 char* maybeGetCoverFilename(const char* _passedCandidate, const char* _passedAcceptable, const char* _passedFolderPrefix, char _filenameCaseSensitive){
 	char _res;
