@@ -1,5 +1,6 @@
 // TODO - If I give up the ability to have a cover file be the music filename just with image extension, I can store the last song as the last folder and not rescan the same folder again. Useful for those who play songs in order.
 // TODO - Allow wildcard so if we have things like "cover1.jpg" we can match it
+// TODO - So I'm having trouble breaking from SDL_WaitEventTimeout. Instead of SIGUSR1, maybe there's  a way I could send a control event to the window?
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -10,7 +11,11 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include "config.h"
-
+unsigned int lastRefresh=0;
+//static void refreshcatch(const int signo){
+//	lastRefresh=0;
+//	(void)signo;
+//}
 char* maybeGetCoverFilename(const char* _passedCandidate, const char* _passedAcceptable, const char* _passedFolderPrefix, char _filenameCaseSensitive){
 	char _res;
 	if (_filenameCaseSensitive){
@@ -31,7 +36,6 @@ char* maybeGetCoverFilename(const char* _passedCandidate, const char* _passedAcc
 	}
 	return NULL;
 }
-
 FILE* goodpopen(char* const _args[]){
 	int _crossFiles[2]; // File descriptors that work for both processes
 	if (pipe(_crossFiles)!=0){
@@ -66,12 +70,18 @@ void seekNextLine(FILE* fp){
 	seekPast(fp,0x0A);
 }
 int main(int argc, char const *argv[]){
+	//// Catch SIGUSR1. Use it as a signal to refresh
+	//struct sigaction refreshsig;
+	//memset(&refreshsig, 0, sizeof(refreshsig));
+	//refreshsig.sa_handler = refreshcatch;
+	//sigaction(SIGUSR1, &refreshsig, NULL);
+
 	SDL_Window* mainWindow;
 	SDL_Renderer* mainWindowRenderer;
 	SDL_Init(SDL_INIT_VIDEO);
 	IMG_Init( IMG_INIT_PNG );
 	IMG_Init( IMG_INIT_JPG );
-	mainWindow = SDL_CreateWindow( "cmus art",SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,640,480,SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN );
+	mainWindow = SDL_CreateWindow(WINDOWTITLE,SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,640,480,SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN );
 	if (!mainWindow){
 		printf("SDL_CreateWindow failed\n");
 		return 1;
@@ -81,8 +91,6 @@ int main(int argc, char const *argv[]){
 		printf("SDL_CreateRenderer failed.\n");
 		return 1;
 	}
-
-	unsigned int _lastRefresh = 0;
 	char* _currentFilename=NULL;
 	SDL_Texture* _currentImage=NULL;
 	char running=1;
@@ -101,12 +109,13 @@ int main(int argc, char const *argv[]){
 			break;
 		}
 		unsigned int _curTime=SDL_GetTicks()+RECHECKMILLI; // Offset all time values by RECHECKMILLI so when the program starts it'll check if RECHECKMILLI > 0 
-		if (_curTime>=_lastRefresh+RECHECKMILLI){
-			_lastRefresh=_curTime;
-			// Hit up cmus-remote to see if we've got a new song
+		if (_curTime>=lastRefresh+RECHECKMILLI){
+			lastRefresh=_curTime;
+			// Ude cmus-remote to see if we've got a new song playing
 			FILE* _cmusRes = goodpopen(_programArgs);
 			char _foundFile=0;
 			while (!feof(_cmusRes)){
+				// Find the 'file' line
 				if (fgetc(_cmusRes)!='f'){
 					seekNextLine(_cmusRes);
 				}else{
@@ -115,6 +124,7 @@ int main(int argc, char const *argv[]){
 					char* _readFile=NULL;
 					size_t _readLen=0;
 					if (getline(&_readFile,&_readLen,_cmusRes)!=-1){
+						// Strip newline left on the string by getline
 						int _cachedStrlen=strlen(_readFile);
 						if (_readFile[_cachedStrlen-1]=='\n'){
 							_readFile[--_cachedStrlen]='\0';
@@ -129,85 +139,85 @@ int main(int argc, char const *argv[]){
 							free(_currentFilename);
 							_currentFilename=_readFile;
 							// Find the folder of the song file by finding the last slash
-							char* _pathSongFolder=NULL;
-							int i;
-							for (i=_cachedStrlen-1;i>0;--i){
-								if (_currentFilename[i]=='/'){
-									_pathSongFolder = malloc(i+2);
-									memcpy(_pathSongFolder,_currentFilename,i+1);
-									_pathSongFolder[i+1]='\0';
-									break;
+							char* _pathSongFolder=strdup(_currentFilename); // Once it contains a folder path, that folder path will end with DIRSEPARATORCHAR
+							int _currentSubDirUp=0;
+							for (_currentSubDirUp=0;_currentSubDirUp<=MAXDIRUP;++_currentSubDirUp){
+								int i;
+								for (i=strlen(_pathSongFolder)-2;i>=0;--i){ // Skip the ending char. This goes over either one char of the filename or the end DIRSEPARATORCHAR from the last path
+									if (_pathSongFolder[i]==DIRSEPARATORCHAR){
+										_pathSongFolder[i+1]='\0';
+										break;
+									}
 								}
-							}
-							if (_pathSongFolder!=NULL){
-								// Find cover image in folder
-								DIR* _songFolder=opendir(_pathSongFolder);
-								if (_songFolder!=NULL){
-									#if SAMEASSONGNAMECOVER
-										int _musicNoExtensionLen=-1;
-										for (i=_cachedStrlen-1;i>0;--i){
-											if (_currentFilename[i]=='.'){
-												_musicNoExtensionLen=i+1;
-												break;
-											}
-										}
-										int _cachedDirLength = strlen(_pathSongFolder);
-										// Temporarily trim the extension off the filename
-										char _oldChar = _currentFilename[_musicNoExtensionLen];
-										_currentFilename[_musicNoExtensionLen]='\0';
-									#endif
-									errno=0;
-									char* _gottenCoverFilename=NULL;
-									struct dirent* _currentEntry;
-									while(_gottenCoverFilename==NULL && (_currentEntry=readdir(_songFolder))){
+								if (i>=0){ // If we actually found a new _pathSongFolder
+									// Find cover image in folder
+									DIR* _songFolder=opendir(_pathSongFolder);
+									if (_songFolder!=NULL){
 										#if SAMEASSONGNAMECOVER
-											_gottenCoverFilename = maybeGetCoverFilename(_currentEntry->d_name,&(_currentFilename[_cachedDirLength]),_pathSongFolder,1);
-										#endif
-										if (!_gottenCoverFilename){
-											// Find out if this is a possible cover
-											for (i=0;i<NUMCOVERFILENAMES;++i){
-												//char* maybeGetCoverFilename(const char* _passedCandidate, const char* _passedAcceptable, const char* _passedFolderPrefix){
-												if (_gottenCoverFilename = maybeGetCoverFilename(_currentEntry->d_name,coverFilenames[i],_pathSongFolder,0)){
+											int _musicNoExtensionLen=-1;
+											for (i=_cachedStrlen-1;i>0;--i){
+												if (_currentFilename[i]=='.'){
+													_musicNoExtensionLen=i+1;
 													break;
 												}
 											}
-										}
-									}
-									#if SAMEASSONGNAMECOVER
-										// Restore the filename to be complete again
-										_currentFilename[_musicNoExtensionLen]=_oldChar;
-									#endif
-									// Load the cover image if found
-									if (_gottenCoverFilename!=NULL){
-										printf("Got art %s\n",_gottenCoverFilename!=NULL ? _gottenCoverFilename : "NULL");	
-										SDL_Surface* _tempSurface=IMG_Load(_gottenCoverFilename);
-										if (_tempSurface!=NULL){
-											if ((_currentImage = SDL_CreateTextureFromSurface(mainWindowRenderer,_tempSurface))==NULL){
-												printf("SDL_CreateTextureFromSurface failed\n");
+											int _cachedDirLength = strlen(_pathSongFolder);
+											// Temporarily trim the extension off the filename
+											char _oldChar = _currentFilename[_musicNoExtensionLen];
+											_currentFilename[_musicNoExtensionLen]='\0';
+										#endif
+										errno=0;
+										char* _gottenCoverFilename=NULL;
+										struct dirent* _currentEntry;
+										while(_gottenCoverFilename==NULL && (_currentEntry=readdir(_songFolder))){
+											#if SAMEASSONGNAMECOVER
+												_gottenCoverFilename = maybeGetCoverFilename(_currentEntry->d_name,&(_currentFilename[_cachedDirLength]),_pathSongFolder,1);
+											#endif
+											if (!_gottenCoverFilename){
+												// Find out if this is a possible cover
+												for (i=0;i<NUMCOVERFILENAMES;++i){
+													//char* maybeGetCoverFilename(const char* _passedCandidate, const char* _passedAcceptable, const char* _passedFolderPrefix){
+													if (_gottenCoverFilename = maybeGetCoverFilename(_currentEntry->d_name,coverFilenames[i],_pathSongFolder,0)){
+														break;
+													}
+												}
 											}
-											SDL_FreeSurface(_tempSurface);
-										}else{
-											printf("Failed to load %s with error %s\n",_gottenCoverFilename,IMG_GetError());
 										}
-									}
-									free(_gottenCoverFilename);
-									if (errno!=0){
-										printf("Failure when reading directory entries, error %d\n",errno);
-									}
-									if (closedir(_songFolder)==-1){
-										printf("Failed to close dir\n");
+										#if SAMEASSONGNAMECOVER
+											// Restore the filename to be complete again
+											_currentFilename[_musicNoExtensionLen]=_oldChar;
+										#endif
+										// Load the cover image if found
+										if (_gottenCoverFilename!=NULL){
+											printf("Got art %s\n",_gottenCoverFilename!=NULL ? _gottenCoverFilename : "NULL");	
+											SDL_Surface* _tempSurface=IMG_Load(_gottenCoverFilename);
+											if (_tempSurface!=NULL){
+												if ((_currentImage = SDL_CreateTextureFromSurface(mainWindowRenderer,_tempSurface))==NULL){
+													printf("SDL_CreateTextureFromSurface failed\n");
+												}
+												SDL_FreeSurface(_tempSurface);
+											}else{
+												printf("Failed to load %s with error %s\n",_gottenCoverFilename,IMG_GetError());
+											}
+										}
+										free(_gottenCoverFilename);
+										if (errno!=0){
+											printf("Failure when reading directory entries, error %d\n",errno);
+										}
+										if (closedir(_songFolder)==-1){
+											printf("Failed to close dir\n");
+										}
+									}else{
+										printf("Failed to open folder %s\n",_pathSongFolder);
 									}
 								}else{
-									printf("Failed to open folder %s\n",_pathSongFolder);
+									printf("Failed to get folder from path\n");
 								}
-								free(_pathSongFolder);
-							}else{
-								printf("Failed to get folder from path\n");
 							}
-						}else{
-							free(_readFile);
+							free(_pathSongFolder);
 						}
-					}else{
+					}
+					if (_currentFilename!=_readFile){
 						free(_readFile);
 					}
 				}
@@ -256,8 +266,9 @@ int main(int argc, char const *argv[]){
 			SDL_RenderCopy(mainWindowRenderer, _currentImage, &_srcRect, &_destRect );
 		}
 		SDL_RenderPresent(mainWindowRenderer);
-		SDL_WaitEventTimeout(NULL, RECHECKMILLI);
+		SDL_WaitEventTimeout(NULL,(lastRefresh+RECHECKMILLI)-_curTime);
 	}
+	free(_currentFilename);
 	SDL_DestroyWindow(mainWindow);
 	return 0;
 }

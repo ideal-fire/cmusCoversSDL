@@ -1,3 +1,4 @@
+#define WINDOWTITLE "cmus art"
 // Minimum amount of time to pass before the program checks for song change
 #define RECHECKMILLI 1000
 //
@@ -25,3 +26,6 @@ char* const _programArgs[] = {
 	"-Q",
 	NULL,
 };
+// If the cover isn't found in the audio file's folder, try going up a directory. Can repeat MAXDIRUP times
+#define MAXDIRUP 1
+#define DIRSEPARATORCHAR '/'
