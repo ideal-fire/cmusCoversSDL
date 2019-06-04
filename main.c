@@ -1,6 +1,5 @@
 // TODO - If I give up the ability to have a cover file be the music filename just with image extension, I can store the last song as the last folder and not rescan the same folder again. Useful for those who play songs in order.
 // TODO - Allow wildcard so if we have things like "cover1.jpg" we can match it
-// TODO - So I'm having trouble breaking from SDL_WaitEventTimeout. Instead of SIGUSR1, maybe there's  a way I could send a control event to the window?
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -11,11 +10,15 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include "config.h"
-unsigned int lastRefresh=0;
-//static void refreshcatch(const int signo){
-//	lastRefresh=0;
-//	(void)signo;
-//}
+#include <time.h>
+
+volatile sig_atomic_t forceRefresh=0;
+
+// Catch SIGUSR1
+static void refreshcatch(const int signo){
+	(void)signo;
+	forceRefresh=1;
+}
 char* maybeGetCoverFilename(const char* _passedCandidate, const char* _passedAcceptable, const char* _passedFolderPrefix, char _filenameCaseSensitive){
 	char _res;
 	if (_filenameCaseSensitive){
@@ -70,11 +73,15 @@ void seekNextLine(FILE* fp){
 	seekPast(fp,0x0A);
 }
 int main(int argc, char const *argv[]){
-	//// Catch SIGUSR1. Use it as a signal to refresh
-	//struct sigaction refreshsig;
-	//memset(&refreshsig, 0, sizeof(refreshsig));
-	//refreshsig.sa_handler = refreshcatch;
-	//sigaction(SIGUSR1, &refreshsig, NULL);
+	// Catch SIGUSR1. Use it as a signal to refresh
+	struct sigaction refreshsig;
+	memset(&refreshsig, 0, sizeof(refreshsig));
+	refreshsig.sa_handler = refreshcatch;
+	sigaction(SIGUSR1, &refreshsig, NULL);
+
+	struct timespec _eventCheckTime;
+	_eventCheckTime.tv_sec=0;
+	_eventCheckTime.tv_nsec = EVENTPOLLTIME*1000000L;
 
 	SDL_Window* mainWindow;
 	SDL_Renderer* mainWindowRenderer;
@@ -91,10 +98,11 @@ int main(int argc, char const *argv[]){
 		printf("SDL_CreateRenderer failed.\n");
 		return 1;
 	}
+	unsigned int lastRefresh=0;
 	char* _currentFilename=NULL;
 	SDL_Texture* _currentImage=NULL;
 	char running=1;
-	while(1){
+	while(running){
 		SDL_Event e;
 		while(SDL_PollEvent(&e)!=0){
 			if(e.type==SDL_QUIT){
@@ -105,13 +113,10 @@ int main(int argc, char const *argv[]){
 				}
 			}
 		}
-		if (!running){
-			break;
-		}
 		unsigned int _curTime=SDL_GetTicks()+RECHECKMILLI; // Offset all time values by RECHECKMILLI so when the program starts it'll check if RECHECKMILLI > 0 
 		if (_curTime>=lastRefresh+RECHECKMILLI){
 			lastRefresh=_curTime;
-			// Ude cmus-remote to see if we've got a new song playing
+			// Use cmus-remote to see if we've got a new song playing
 			FILE* _cmusRes = goodpopen(_programArgs);
 			char _foundFile=0;
 			while (!feof(_cmusRes)){
@@ -232,7 +237,7 @@ int main(int argc, char const *argv[]){
 			}
 			fclose(_cmusRes);
 		}
-
+		// SDL says you must redraw everything every time you use SDL_RenderPresent
 		SDL_SetRenderDrawColor(mainWindowRenderer,0,0,0,255);
 		SDL_RenderClear(mainWindowRenderer);
 		if (_currentImage!=NULL){
@@ -266,7 +271,31 @@ int main(int argc, char const *argv[]){
 			SDL_RenderCopy(mainWindowRenderer, _currentImage, &_srcRect, &_destRect );
 		}
 		SDL_RenderPresent(mainWindowRenderer);
-		SDL_WaitEventTimeout(NULL,(lastRefresh+RECHECKMILLI)-_curTime);
+		int _nextCmusCheckTime = (lastRefresh+RECHECKMILLI+10)-_curTime;
+		#if WAITMODE == 0
+			// Based on SDL_WaitEventTimeout
+			unsigned int _maxTime = SDL_GetTicks()+_nextCmusCheckTime;
+			while(1){
+				SDL_PumpEvents();
+				int _numNewEvents = SDL_PeepEvents(NULL,1,SDL_GETEVENT,SDL_FIRSTEVENT,SDL_LASTEVENT);
+				if (_numNewEvents!=0){ // Accounts for errors too
+					break;
+				}else{
+					if (forceRefresh || SDL_GetTicks()>=_maxTime){
+						forceRefresh=0;
+						lastRefresh=0;
+						break;
+					}else{
+						nanosleep(&_eventCheckTime,NULL);
+					}
+				}
+			}
+		#elif WAITMODE == 1
+			struct timespec _waitTime;
+			_waitTime.tv_sec=0;
+			_waitTime.tv_nsec = ALTWAITMODEREDRAWTIME < _nextCmusCheckTime*1000000L ? ALTWAITMODEREDRAWTIME : _nextCmusCheckTime*1000000L;
+			nanosleep(&_waitTime,NULL);
+		#endif
 	}
 	free(_currentFilename);
 	SDL_DestroyWindow(mainWindow);
