@@ -1,0 +1,15 @@
+Simple cover art viewer for cmus using SDL2, SDL2_Image, and cmus-remote.
+-----------
+
+Compiling
+---
+`make`
+You may want to edit config.h. It'll be copied from config.def.h the first time you run `make.`
+If cmus-remote isn't in /usr/bin/cmus-remote, you must open `config.h` and modify the `programArgs` array.
+
+Tip
+---
+To force the program to check for song change, send SIGUSR1 to the program.
+`pkill -USR1 cmusCoverViewer`
+To make this automatically run when cmus updates, create a script with the command and tell cmus to use it with 
+`:set status_display_program=/home/user/whateverscript.sh`
