@@ -1,5 +1,6 @@
-#define WINDOWTITLE "cmus art"
+#define WINDOWTITLE "Cover"
 // Minimum amount of time to pass before the program checks for song change
+// Set this to -1 to disable automatic refresh, but then the program won't be able to detect when cmus closes.
 #define RECHECKMILLI 1000
 //
 #define PIXELPADDING 5
@@ -22,7 +23,7 @@ char* const loadableExtensions[NUMEXTENSIONS] = {
 };
 // Program arguments to get info from cmus-remote
 // You may need to change the path to /usr/bin/local if you installed cmus yourself
-char* const _programArgs[] = {
+char* const programArgs[] = {
 	"/usr/bin/cmus-remote",
 	"-Q",
 	NULL,

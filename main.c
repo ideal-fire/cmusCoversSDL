@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <SDL2/SDL.h>
@@ -11,12 +12,12 @@
 #include "config.h"
 #include <time.h>
 
-volatile sig_atomic_t forceRefresh=0;
+volatile sig_atomic_t shouldRecheck=1;
 
 // Catch SIGUSR1
 static void refreshcatch(const int signo){
 	(void)signo;
-	forceRefresh=1;
+	shouldRecheck=1;
 }
 // string should not include dot
 char isLoadableExtension(const char* _passedFilename){
@@ -135,11 +136,19 @@ int main(int argc, char const *argv[]){
 				}
 			}
 		}
-		unsigned int _curTime=SDL_GetTicks()+RECHECKMILLI; // Offset all time values by RECHECKMILLI so when the program starts it'll check if RECHECKMILLI > 0 
-		if (_curTime>=lastRefresh+RECHECKMILLI){
+
+		unsigned int _curTime=0;
+		#if RECHECKMILLI != -1
+			_curTime=SDL_GetTicks()+RECHECKMILLI; // Offset all time values by RECHECKMILLI so when the program starts it'll check if RECHECKMILLI > 0 
+			if (_curTime>=lastRefresh+RECHECKMILLI){
+				shouldRecheck=1;
+			}
+		#endif
+		if (shouldRecheck){
+			shouldRecheck=0;
 			lastRefresh=_curTime;
 			// Use cmus-remote to see if we've got a new song playing
-			FILE* _cmusRes = goodpopen(_programArgs);
+			FILE* _cmusRes = goodpopen(programArgs);
 			char _foundFile=0;
 			while (!feof(_cmusRes)){
 				// Find the 'file' line
@@ -292,7 +301,12 @@ int main(int argc, char const *argv[]){
 			SDL_RenderCopy(mainWindowRenderer, _currentImage, &_srcRect, &_destRect );
 		}
 		SDL_RenderPresent(mainWindowRenderer);
-		int _nextCmusCheckTime = (lastRefresh+RECHECKMILLI+10)-_curTime;
+		int _nextCmusCheckTime;
+		#if RECHECKMILLI != -1
+			_nextCmusCheckTime = (lastRefresh+RECHECKMILLI+10)-_curTime;
+		#else
+			_nextCmusCheckTime = INT32_MAX;
+		#endif
 		#if WAITMODE == 0
 			// Based on SDL_WaitEventTimeout
 			unsigned int _maxTime = SDL_GetTicks()+_nextCmusCheckTime;
@@ -302,9 +316,8 @@ int main(int argc, char const *argv[]){
 				if (_numNewEvents!=0){ // Accounts for errors too
 					break;
 				}else{
-					if (forceRefresh || SDL_GetTicks()>=_maxTime){
-						forceRefresh=0;
-						lastRefresh=0;
+					if (shouldRecheck || SDL_GetTicks()>=_maxTime){
+						shouldRecheck=1;
 						break;
 					}else{
 						nanosleep(&_eventCheckTime,NULL);
