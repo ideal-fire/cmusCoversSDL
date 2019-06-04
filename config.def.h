@@ -1,16 +1,17 @@
 #define WINDOWTITLE "cmus art"
 // Minimum amount of time to pass before the program checks for song change
-#define RECHECKMILLI 10000
+#define RECHECKMILLI 1000
 //
 #define PIXELPADDING 5
 // 1 if you will allow a cover to a song to be the same filename as the song, just with an image extension. For example, bla.jpg as a cover for bla.wav.
 #define SAMEASSONGNAMECOVER 1
 // Possible filenames for cover files
 // Should all end in a dot and be lowercase
+// Ones that end in asterisk only match the start, otherwise they should end in a dot
 #define NUMCOVERFILENAMES 2
 char* const coverFilenames[NUMCOVERFILENAMES] = {
-	"cover.",
-	"folder.",
+	"cover*",
+	"folder*",
 };
 // Extensions that covers can have
 // Should be written lowercase and without a dot

@@ -1,5 +1,4 @@
 // TODO - If I give up the ability to have a cover file be the music filename just with image extension, I can store the last song as the last folder and not rescan the same folder again. Useful for those who play songs in order.
-// TODO - Allow wildcard so if we have things like "cover1.jpg" we can match it
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -19,22 +18,45 @@ static void refreshcatch(const int signo){
 	(void)signo;
 	forceRefresh=1;
 }
-char* maybeGetCoverFilename(const char* _passedCandidate, const char* _passedAcceptable, const char* _passedFolderPrefix, char _filenameCaseSensitive){
+// string should not include dot
+char isLoadableExtension(const char* _passedFilename){
+	int i;
+	for (i=0;i<NUMEXTENSIONS;++i){
+		if (strncasecmp(_passedFilename,loadableExtensions[i],strlen(loadableExtensions[i]))==0){
+			return 1;
+		}
+	}
+	return 0;
+}
+const char* getExtensionStart(const char* _passedFilename){
+	int i;
+	for (i=strlen(_passedFilename)-1;i>=0;--i){
+		if (_passedFilename[i]=='.'){
+			return &(_passedFilename[i+1]);
+		}
+	}
+	return NULL;
+}
+// If the passed filename matched the other passed filename, return the full path.
+char* getMatchingCoverFilename(const char* _passedCandidate, const char* _passedAcceptable, const char* _passedFolderPrefix, char _filenameCaseSensitive, char _canAsterisk){
+	int _matcherLen = strlen(_passedAcceptable);
+	char _isStartOnly=0;
+	if (_canAsterisk && _passedAcceptable[_matcherLen-1]=='*'){
+		--_matcherLen;
+		_isStartOnly=1;
+	}
 	char _res;
 	if (_filenameCaseSensitive){
-		_res=(strncmp(_passedCandidate,_passedAcceptable,strlen(_passedAcceptable))==0);
+		_res=(strncmp(_passedCandidate,_passedAcceptable,_matcherLen)==0);
 	}else{
-		_res=(strncasecmp(_passedCandidate,_passedAcceptable,strlen(_passedAcceptable))==0);
+		_res=(strncasecmp(_passedCandidate,_passedAcceptable,_matcherLen)==0);
 	}
 	if (_res){
-		int j;
-		for (j=0;j<NUMEXTENSIONS;++j){
-			if (strncasecmp(&(_passedCandidate[strlen(_passedAcceptable)]),loadableExtensions[j],strlen(loadableExtensions[j]))==0){
-				char* _gottenCoverFilename = malloc(strlen(_passedFolderPrefix)+strlen(_passedCandidate)+1);
-				strcpy(_gottenCoverFilename,_passedFolderPrefix);
-				strcat(_gottenCoverFilename,_passedCandidate);
-				return _gottenCoverFilename;
-			}
+		if (isLoadableExtension(_isStartOnly?getExtensionStart(_passedCandidate):&(_passedCandidate[_matcherLen]))){
+			char* _gottenCoverFilename = malloc(strlen(_passedFolderPrefix)+strlen(_passedCandidate)+1);
+			strcpy(_gottenCoverFilename,_passedFolderPrefix);
+			strcat(_gottenCoverFilename,_passedCandidate);
+			return _gottenCoverFilename;
 		}
 	}
 	return NULL;
@@ -176,13 +198,12 @@ int main(int argc, char const *argv[]){
 										struct dirent* _currentEntry;
 										while(_gottenCoverFilename==NULL && (_currentEntry=readdir(_songFolder))){
 											#if SAMEASSONGNAMECOVER
-												_gottenCoverFilename = maybeGetCoverFilename(_currentEntry->d_name,&(_currentFilename[_cachedDirLength]),_pathSongFolder,1);
+												_gottenCoverFilename = getMatchingCoverFilename(_currentEntry->d_name,&(_currentFilename[_cachedDirLength]),_pathSongFolder,1,0);
 											#endif
 											if (!_gottenCoverFilename){
 												// Find out if this is a possible cover
 												for (i=0;i<NUMCOVERFILENAMES;++i){
-													//char* maybeGetCoverFilename(const char* _passedCandidate, const char* _passedAcceptable, const char* _passedFolderPrefix){
-													if (_gottenCoverFilename = maybeGetCoverFilename(_currentEntry->d_name,coverFilenames[i],_pathSongFolder,0)){
+													if (_gottenCoverFilename = getMatchingCoverFilename(_currentEntry->d_name,coverFilenames[i],_pathSongFolder,0,1)){
 														break;
 													}
 												}
