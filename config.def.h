@@ -32,6 +32,8 @@ char* const programArgs[] = {
 #define MAXDIRUP 1
 // Change this if you're using Windows
 #define DIRSEPARATORCHAR '/'
+// If you want to fallback on a random loadable image in the same folder as the song if a known cover filename isn't found
+#define FALLBACKRANDOM 1
 /*
 Changes how the application waits for its next redraw
 0 - Wait using SDL_WaitEventTimeout. The application will redraw when the window receives events or when it checks for cmus updates. Recommended mode
