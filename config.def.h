@@ -21,6 +21,9 @@ char* const loadableExtensions[NUMEXTENSIONS] = {
 	"jpg",
 	"png",
 };
+// If this is enabled, the program won't stop right after finding a valid cover filename. It'll look through the rest of the files in that folder first. If it finds a file with a filename that higher (lower index) in the coverFilenames array, it'll use that as the cover instead.
+// So you can put your preferred filenames in the array first and those will get chosen.
+#define COVERFILENAMEPRIORITYENABLED 1
 // Program arguments to get info from cmus-remote
 // You may need to change the path to /usr/bin/local if you installed cmus yourself
 char* const programArgs[] = {

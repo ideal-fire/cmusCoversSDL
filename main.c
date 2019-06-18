@@ -205,10 +205,13 @@ int main(int argc, char const *argv[]){
 										#endif
 										errno=0;
 										struct dirent* _currentEntry;
-										while(_gottenCoverFilename==NULL && (_currentEntry=readdir(_songFolder))){
+										while((COVERFILENAMEPRIORITYENABLED || _gottenCoverFilename==NULL) && (_currentEntry=readdir(_songFolder))){
 											if (isLoadableFilename(_currentEntry->d_name)){
 												#if SAMEASSONGNAMECOVER
+													// I chose to compare every filename to the music's filename.
+													// I could've checked if files exist using the music's filename and all valid extensions, but I feel that checking file existance would be worse than string comparison.
 													if (_musicNoExtensionLen!=-1 && filenamesMatch(_currentEntry->d_name,&(_currentFilename[_cachedDirLength]),1,0)){
+														free(_gottenCoverFilename);
 														_gottenCoverFilename = strdup(_currentEntry->d_name);
 														continue;
 													}
@@ -216,6 +219,7 @@ int main(int argc, char const *argv[]){
 												// If this is one of the known cover filenames
 												for (i=0;i<NUMCOVERFILENAMES;++i){
 													if (filenamesMatch(_currentEntry->d_name,coverFilenames[i],0,1)){
+														free(_gottenCoverFilename);
 														_gottenCoverFilename=strdup(_currentEntry->d_name);
 														break;
 													}
