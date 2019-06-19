@@ -8,12 +8,14 @@
 #include <limits.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#include <id3v2lib.h>
 #include "config.h"
-#include <time.h>
 
 volatile sig_atomic_t shouldRecheck=1;
+SDL_Renderer* mainWindowRenderer;
 
 // Catch SIGUSR1
 static void refreshcatch(const int signo){
@@ -90,6 +92,172 @@ void seekPast(FILE* fp, unsigned char _target){
 void seekNextLine(FILE* fp){
 	seekPast(fp,0x0A);
 }
+SDL_Texture* loadImageFromBuffer(char* _passedData, long _passedSize){
+}
+SDL_Texture* getEmbeddedCover(char* _currentFilename){
+	#if _has_id3v2lib
+	SDL_Texture* _ret=NULL;
+	const char* _possibleExtensionStart = getExtensionStart(_currentFilename);
+	if (strcmp(_possibleExtensionStart,"mp3")!=0){ // Only supports mp3 right now
+		return NULL;
+	}
+	ID3v2_tag* _myTags = load_tag(_currentFilename);
+	if (!_myTags){
+		printf("Failed to load %s for tag reading\n",_currentFilename);
+		return NULL;
+	}
+	ID3v2_frame* _myFrameCover = tag_get_album_cover(_myTags);
+	if (_myFrameCover!=NULL){
+		ID3v2_frame_apic_content* _myCover = parse_apic_frame_content(_myFrameCover); // Can't fail?
+		SDL_RWops* _readableBuffer = SDL_RWFromMem(_myCover->data, _myCover->picture_size);
+		if (_readableBuffer!=NULL){
+			SDL_Surface* _tempSurface = IMG_Load_RW(_readableBuffer, 1); // closes SDL_RWops for us
+			if (_tempSurface!=NULL){		
+				if ((_ret = SDL_CreateTextureFromSurface(mainWindowRenderer,_tempSurface))==NULL){
+					printf("SDL_CreateTextureFromSurface failed\n");
+				}else{
+					printf("Got embedded art\n");
+				}
+				SDL_FreeSurface(_tempSurface);
+			}else{
+				printf("Failed to load buffer as image.\n");
+			}
+		}else{
+			printf("Failed SDL_RWFromMem %s\n",SDL_GetError());
+		}
+		free(_myCover->mime_type);
+		free(_myCover->data);
+		free(_myCover);
+	}else{
+		printf("No album art for %s\n",_currentFilename);
+	}
+	free_tag(_myTags);
+	return _ret;
+	#else
+	return NULL;
+	#endif
+}
+SDL_Texture* getCoverByStandaloneImage(char* _currentFilename){
+	SDL_Texture* _ret=NULL;
+	// Find the folder of the song file by finding the last slash
+	char* _pathSongFolder=strdup(_currentFilename); // Once it contains a folder path, that folder path will end with DIRSEPARATORCHAR
+	int _currentSubDirUp=0;
+	char* _gottenCoverFilename=NULL;
+	for (_currentSubDirUp=0;_currentSubDirUp<=MAXDIRUP;++_currentSubDirUp){
+		int i;
+		for (i=strlen(_pathSongFolder)-2;i>=0;--i){ // Skip the ending char. This goes over either one char of the filename or the end DIRSEPARATORCHAR from the last path
+			if (_pathSongFolder[i]==DIRSEPARATORCHAR){
+				_pathSongFolder[i+1]='\0';
+				break;
+			}
+		}
+		if (i>=0){ // If we actually found a new _pathSongFolder
+			#if SAMEASSONGNAMECOVER
+			int _musicNoExtensionLen=-1;
+			int _cachedDirLength;
+			char _oldChar;
+			const char* _extensionPos = getExtensionStart(_currentFilename);
+			if (_extensionPos!=NULL){
+				_cachedDirLength = strlen(_pathSongFolder);
+				_musicNoExtensionLen = _extensionPos-_currentFilename-1;
+				// Temporarily trim the extension off the filename
+				_oldChar = _currentFilename[_musicNoExtensionLen];
+				_currentFilename[_musicNoExtensionLen]='\0';
+			}else{
+				printf("No extension for %s\n",_currentFilename);
+			}										
+			#endif
+			// Find cover image in folder
+			DIR* _songFolder=opendir(_pathSongFolder);
+			if (_songFolder!=NULL){
+				#if FALLBACKRANDOM
+				char* _backupCoverFilename=NULL; // For images that can be loaded, but don't match a known cover filename. Load this if _gottenCoverFilename is NULL
+				#endif
+				errno=0;
+				struct dirent* _currentEntry;
+				while((COVERFILENAMEPRIORITYENABLED || _gottenCoverFilename==NULL) && (_currentEntry=readdir(_songFolder))){
+					if (isLoadableFilename(_currentEntry->d_name)){
+						#if SAMEASSONGNAMECOVER
+						// I chose to compare every filename to the music's filename.
+						// I could've checked if files exist using the music's filename and all valid extensions, but I feel that checking file existance would be worse than string comparison.
+						if (_musicNoExtensionLen!=-1 && filenamesMatch(_currentEntry->d_name,&(_currentFilename[_cachedDirLength]),1,0)){
+							free(_gottenCoverFilename);
+							_gottenCoverFilename = strdup(_currentEntry->d_name);
+							continue;
+						}
+						#endif
+						// If this is one of the known cover filenames
+						for (i=0;i<NUMCOVERFILENAMES;++i){
+							if (filenamesMatch(_currentEntry->d_name,coverFilenames[i],0,1)){
+								free(_gottenCoverFilename);
+								_gottenCoverFilename=strdup(_currentEntry->d_name);
+								break;
+							}
+						}
+						#if FALLBACKRANDOM
+						// If it's not one of the known filenames, still keep it for later if we need to fall back on it
+						if (i==NUMCOVERFILENAMES){
+							free(_backupCoverFilename);
+							_backupCoverFilename = strdup(_currentEntry->d_name);
+						}
+						#endif
+					}
+				}
+				#if FALLBACKRANDOM
+				// Use the backup if needed
+				if (_gottenCoverFilename==NULL){
+					_gottenCoverFilename=_backupCoverFilename;
+				}else{
+					free(_backupCoverFilename);
+				}
+				#endif
+				if (errno!=0){
+					printf("Failure when reading directory entries, error %d\n",errno);
+				}
+				if (closedir(_songFolder)==-1){
+					printf("Failed to close dir\n");
+				}
+			}else{
+				printf("Failed to open folder %s\n",_pathSongFolder);
+			}
+			#if SAMEASSONGNAMECOVER
+			if (_musicNoExtensionLen!=-1){
+				// Restore the old filename
+				_currentFilename[_musicNoExtensionLen]=_oldChar;
+			}
+			#endif
+			// If we've got a cover image, exit early
+			if (_gottenCoverFilename!=NULL){
+				// We must exit right now because the _gottenCoverFilename we have right now relies on the _pathSongFolder that we also have right now. If we continue, the _pathSongFolder will change.
+				break;
+			}
+		}else{
+			printf("Failed to get folder from path\n");
+		}
+	}
+	// Load the cover image if found
+	if (_gottenCoverFilename!=NULL){
+		// Expand to a full file path
+		char* _fullFilename = malloc(strlen(_pathSongFolder)+strlen(_gottenCoverFilename)+1);
+		strcpy(_fullFilename,_pathSongFolder);
+		strcat(_fullFilename,_gottenCoverFilename);
+		printf("Got art %s\n",_fullFilename);
+		//
+		SDL_Surface* _tempSurface=IMG_Load(_fullFilename);
+		if (_tempSurface!=NULL){
+			if ((_ret = SDL_CreateTextureFromSurface(mainWindowRenderer,_tempSurface))==NULL){
+				printf("SDL_CreateTextureFromSurface failed\n");
+			}
+			SDL_FreeSurface(_tempSurface);
+		}else{
+			printf("Failed to load %s with error %s\n",_fullFilename,IMG_GetError());
+		}
+		free(_fullFilename);
+		free(_gottenCoverFilename);
+	}
+	free(_pathSongFolder);
+	return _ret;
+}
 int main(int argc, char const *argv[]){
 	// Catch SIGUSR1. Use it as a signal to refresh
 	struct sigaction refreshsig;
@@ -102,7 +270,6 @@ int main(int argc, char const *argv[]){
 	_eventCheckTime.tv_nsec = EVENTPOLLTIME*1000000L;
 
 	SDL_Window* mainWindow;
-	SDL_Renderer* mainWindowRenderer;
 	SDL_Init(SDL_INIT_VIDEO);
 	IMG_Init( IMG_INIT_PNG );
 	IMG_Init( IMG_INIT_JPG );
@@ -169,123 +336,9 @@ int main(int argc, char const *argv[]){
 							}
 							free(_currentFilename);
 							_currentFilename=_readFile;
-							// Find the folder of the song file by finding the last slash
-							char* _pathSongFolder=strdup(_currentFilename); // Once it contains a folder path, that folder path will end with DIRSEPARATORCHAR
-							int _currentSubDirUp=0;
-							char* _gottenCoverFilename=NULL;
-							for (_currentSubDirUp=0;_currentSubDirUp<=MAXDIRUP;++_currentSubDirUp){
-								int i;
-								for (i=strlen(_pathSongFolder)-2;i>=0;--i){ // Skip the ending char. This goes over either one char of the filename or the end DIRSEPARATORCHAR from the last path
-									if (_pathSongFolder[i]==DIRSEPARATORCHAR){
-										_pathSongFolder[i+1]='\0';
-										break;
-									}
-								}
-								if (i>=0){ // If we actually found a new _pathSongFolder
-									#if SAMEASSONGNAMECOVER
-										int _musicNoExtensionLen=-1;
-										int _cachedDirLength;
-										char _oldChar;
-										const char* _extensionPos = getExtensionStart(_currentFilename);
-										if (_extensionPos!=NULL){
-											_cachedDirLength = strlen(_pathSongFolder);
-											_musicNoExtensionLen = _extensionPos-_currentFilename-1;
-											// Temporarily trim the extension off the filename
-											_oldChar = _currentFilename[_musicNoExtensionLen];
-											_currentFilename[_musicNoExtensionLen]='\0';
-										}else{
-											printf("No extension for %s\n",_currentFilename);
-										}										
-									#endif
-									// Find cover image in folder
-									DIR* _songFolder=opendir(_pathSongFolder);
-									if (_songFolder!=NULL){
-										#if FALLBACKRANDOM
-											char* _backupCoverFilename=NULL; // For images that can be loaded, but don't match a known cover filename. Load this if _gottenCoverFilename is NULL
-										#endif
-										errno=0;
-										struct dirent* _currentEntry;
-										while((COVERFILENAMEPRIORITYENABLED || _gottenCoverFilename==NULL) && (_currentEntry=readdir(_songFolder))){
-											if (isLoadableFilename(_currentEntry->d_name)){
-												#if SAMEASSONGNAMECOVER
-													// I chose to compare every filename to the music's filename.
-													// I could've checked if files exist using the music's filename and all valid extensions, but I feel that checking file existance would be worse than string comparison.
-													if (_musicNoExtensionLen!=-1 && filenamesMatch(_currentEntry->d_name,&(_currentFilename[_cachedDirLength]),1,0)){
-														free(_gottenCoverFilename);
-														_gottenCoverFilename = strdup(_currentEntry->d_name);
-														continue;
-													}
-												#endif
-												// If this is one of the known cover filenames
-												for (i=0;i<NUMCOVERFILENAMES;++i){
-													if (filenamesMatch(_currentEntry->d_name,coverFilenames[i],0,1)){
-														free(_gottenCoverFilename);
-														_gottenCoverFilename=strdup(_currentEntry->d_name);
-														break;
-													}
-												}
-												#if FALLBACKRANDOM
-													// If it's not one of the known filenames, still keep it for later if we need to fall back on it
-													if (i==NUMCOVERFILENAMES){
-														free(_backupCoverFilename);
-														_backupCoverFilename = strdup(_currentEntry->d_name);
-													}
-												#endif
-											}
-										}
-										#if FALLBACKRANDOM
-											// Use the backup if needed
-											if (_gottenCoverFilename==NULL){
-												_gottenCoverFilename=_backupCoverFilename;
-											}else{
-												free(_backupCoverFilename);
-											}
-										#endif
-										if (errno!=0){
-											printf("Failure when reading directory entries, error %d\n",errno);
-										}
-										if (closedir(_songFolder)==-1){
-											printf("Failed to close dir\n");
-										}
-									}else{
-										printf("Failed to open folder %s\n",_pathSongFolder);
-									}
-									#if SAMEASSONGNAMECOVER
-										if (_musicNoExtensionLen!=-1){
-											// Restore the old filename
-											_currentFilename[_musicNoExtensionLen]=_oldChar;
-										}
-									#endif
-									// If we've got a cover image, exit early
-									if (_gottenCoverFilename!=NULL){
-										// We must exit right now because the _gottenCoverFilename we have right now relies on the _pathSongFolder that we also have right now. If we continue, the _pathSongFolder will change.
-										break;
-									}
-								}else{
-									printf("Failed to get folder from path\n");
-								}
-							}
-							// Load the cover image if found
-							if (_gottenCoverFilename!=NULL){
-								// Expand to a full file path
-								char* _fullFilename = malloc(strlen(_pathSongFolder)+strlen(_gottenCoverFilename)+1);
-								strcpy(_fullFilename,_pathSongFolder);
-								strcat(_fullFilename,_gottenCoverFilename);
-								printf("Got art %s\n",_fullFilename);
-								//
-								SDL_Surface* _tempSurface=IMG_Load(_fullFilename);
-								if (_tempSurface!=NULL){
-									if ((_currentImage = SDL_CreateTextureFromSurface(mainWindowRenderer,_tempSurface))==NULL){
-										printf("SDL_CreateTextureFromSurface failed\n");
-									}
-									SDL_FreeSurface(_tempSurface);
-								}else{
-									printf("Failed to load %s with error %s\n",_fullFilename,IMG_GetError());
-								}
-								free(_fullFilename);
-								free(_gottenCoverFilename);
-							}
-							free(_pathSongFolder);
+							// Try and get cover image using various ways
+							int i;
+							for (i=0;i<NUMCOVERGETTERS && ((_currentImage=coverGetters[i](_currentFilename))==NULL);++i);
 						}
 					}
 					if (_currentFilename!=_readFile){
