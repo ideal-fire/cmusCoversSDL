@@ -1,5 +1,3 @@
-// TODO - If I give up the ability to have a cover file be the music filename just with image extension, I can store the last song as the last folder and not rescan the same folder again. Useful for those who play songs in order.
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -11,7 +9,9 @@
 #include <time.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#if _has_id3v2lib
 #include <id3v2lib.h>
+#endif
 #include "config.h"
 
 volatile sig_atomic_t shouldRecheck=1;
@@ -92,8 +92,6 @@ void seekPast(FILE* fp, unsigned char _target){
 void seekNextLine(FILE* fp){
 	seekPast(fp,0x0A);
 }
-SDL_Texture* loadImageFromBuffer(char* _passedData, long _passedSize){
-}
 SDL_Texture* getEmbeddedCover(char* _currentFilename){
 	#if _has_id3v2lib
 	SDL_Texture* _ret=NULL;
@@ -138,6 +136,7 @@ SDL_Texture* getEmbeddedCover(char* _currentFilename){
 	#endif
 }
 SDL_Texture* getCoverByStandaloneImage(char* _currentFilename){
+	// NOTE - If I give up the ability to have a cover file be the music filename just with image extension, I can store the last song as the last folder and not rescan the same folder again. Useful for those who play songs in order.
 	SDL_Texture* _ret=NULL;
 	// Find the folder of the song file by finding the last slash
 	char* _pathSongFolder=strdup(_currentFilename); // Once it contains a folder path, that folder path will end with DIRSEPARATORCHAR
