@@ -1,25 +1,21 @@
 cmusCoversSDL
------------
+-------------
 
 About
 ---
 Simple cover art viewer for cmus using SDL2 and SDL2_Image.
 Instead of being a script that runs another image viewer, this program uses its own window. This allows it to work well with tiling window managers.
 
-id3v2lib
----
-Cover images are grabbed from mp3 files using id3v2lib. Compile and install the library:
-https://github.com/larsbs/id3v2lib
-As of 06/18/19, it has some memory leaks, so you should install the memleak-patch branch of https://github.com/hlgsdx/id3v2lib instead.
-   It can be cloned with the command:
-   git clone --single-branch --branch memleak-patch "https://github.com/hlgsdx/id3v2lib"
-If you don't need this feature, you can disable it by editing the makefile. There are instructions located in it.
-
 Compiling
 ---
 `make`
 You may want to edit config.h. It'll be copied from config.def.h the first time you run `make.`
 If cmus-remote isn't in /usr/bin/cmus-remote, you must open `config.h` and modify the `programArgs` array.
+
+libavformat
+---
+Embedded cover images are grabbed from audio files using libavformat, which is part of ffmpeg.
+If you don't need this feature, you can disable it by editing the makefile. There are instructions located in it.
 
 Tip
 ---

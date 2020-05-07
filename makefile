@@ -1,8 +1,8 @@
 src = $(wildcard *.c)
 obj = $(src:.c=.o)
 
-# If you don't have id3v2lib, delete the last two entries of this line
-CFLAGS = -g -lSDL2 -lSDL2_image -D_has_id3v2lib -lid3v2
+# If you don't want to build with ffmpeg's libavformat, remove the last two lines.
+CFLAGS = -g -lSDL2 -lSDL2_image -D_has_libavformat -lavformat
 OUTNAME = cmusCoverViewer
 
 all: config.h $(OUTNAME)

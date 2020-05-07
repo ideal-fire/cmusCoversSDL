@@ -9,8 +9,8 @@
 #include <time.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
-#if _has_id3v2lib
-#include <id3v2lib.h>
+#if _has_libavformat
+#include <libavformat/avformat.h>
 #endif
 #include "config.h"
 
@@ -92,44 +92,38 @@ void seekPast(FILE* fp, unsigned char _target){
 void seekNextLine(FILE* fp){
 	seekPast(fp,0x0A);
 }
-SDL_Texture* getEmbeddedCover(char* _currentFilename){
-	#if _has_id3v2lib
+SDL_Texture* memToTexture(void* _buff, size_t _len){
 	SDL_Texture* _ret=NULL;
-	const char* _possibleExtensionStart = getExtensionStart(_currentFilename);
-	if (strcmp(_possibleExtensionStart,"mp3")!=0){ // Only supports mp3 right now
-		return NULL;
-	}
-	ID3v2_tag* _myTags = load_tag(_currentFilename);
-	if (!_myTags){
-		printf("Failed to load %s for tag reading\n",_currentFilename);
-		return NULL;
-	}
-	ID3v2_frame* _myFrameCover = tag_get_album_cover(_myTags);
-	if (_myFrameCover!=NULL){
-		ID3v2_frame_apic_content* _myCover = parse_apic_frame_content(_myFrameCover); // Can't fail?
-		SDL_RWops* _readableBuffer = SDL_RWFromMem(_myCover->data, _myCover->picture_size);
-		if (_readableBuffer!=NULL){
-			SDL_Surface* _tempSurface = IMG_Load_RW(_readableBuffer, 1); // closes SDL_RWops for us
-			if (_tempSurface!=NULL){		
-				if ((_ret = SDL_CreateTextureFromSurface(mainWindowRenderer,_tempSurface))==NULL){
-					printf("SDL_CreateTextureFromSurface failed\n");
-				}else{
-					printf("Got embedded art\n");
-				}
-				SDL_FreeSurface(_tempSurface);
-			}else{
-				printf("Failed to load buffer as image.\n");
+	SDL_RWops* _readableBuffer = SDL_RWFromMem(_buff,_len);
+	if (_readableBuffer!=NULL){
+		SDL_Surface* _tempSurface = IMG_Load_RW(_readableBuffer,1); // closes SDL_RWops for us
+		if (_tempSurface!=NULL){
+			if ((_ret = SDL_CreateTextureFromSurface(mainWindowRenderer,_tempSurface))==NULL){
+				printf("SDL_CreateTextureFromSurface failed\n");
 			}
+			SDL_FreeSurface(_tempSurface);
 		}else{
-			printf("Failed SDL_RWFromMem %s\n",SDL_GetError());
+			printf("Failed to load buffer as image.\n");
 		}
-		free(_myCover->mime_type);
-		free(_myCover->data);
-		free(_myCover);
 	}else{
-		printf("No album art for %s\n",_currentFilename);
+		printf("Failed SDL_RWFromMem %s\n",SDL_GetError());
 	}
-	free_tag(_myTags);
+	return _ret;
+}
+SDL_Texture* getEmbeddedCover(char* _currentFilename){
+	#if _has_libavformat
+	SDL_Texture* _ret=NULL;
+	AVFormatContext *pFormatCtx = avformat_alloc_context();
+	if (avformat_open_input(&pFormatCtx,_currentFilename,NULL,NULL)==0){
+		for (int i=0;i<pFormatCtx->nb_streams;++i){
+			if (pFormatCtx->streams[i]->disposition & AV_DISPOSITION_ATTACHED_PIC) {
+				AVPacket pkt = pFormatCtx->streams[i]->attached_pic;
+				_ret=memToTexture(pkt.data,pkt.size);
+				break;
+			}
+		}
+		avformat_close_input(&pFormatCtx);
+	}
 	return _ret;
 	#else
 	return NULL;
