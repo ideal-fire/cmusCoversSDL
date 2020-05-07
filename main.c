@@ -99,14 +99,14 @@ SDL_Texture* memToTexture(void* _buff, size_t _len){
 		SDL_Surface* _tempSurface = IMG_Load_RW(_readableBuffer,1); // closes SDL_RWops for us
 		if (_tempSurface!=NULL){
 			if ((_ret = SDL_CreateTextureFromSurface(mainWindowRenderer,_tempSurface))==NULL){
-				printf("SDL_CreateTextureFromSurface failed\n");
+				fprintf(stderr,"SDL_CreateTextureFromSurface failed\n");
 			}
 			SDL_FreeSurface(_tempSurface);
 		}else{
-			printf("Failed to load buffer as image.\n");
+			fprintf(stderr,"Failed to load buffer as image.\n");
 		}
 	}else{
-		printf("Failed SDL_RWFromMem %s\n",SDL_GetError());
+		fprintf(stderr,"Failed SDL_RWFromMem %s\n",SDL_GetError());
 	}
 	return _ret;
 }
@@ -157,7 +157,7 @@ SDL_Texture* getCoverByStandaloneImage(char* _currentFilename){
 				_oldChar = _currentFilename[_musicNoExtensionLen];
 				_currentFilename[_musicNoExtensionLen]='\0';
 			}else{
-				printf("No extension for %s\n",_currentFilename);
+				fprintf(stderr,"No extension for %s\n",_currentFilename);
 			}										
 			#endif
 			// Find cover image in folder
@@ -205,13 +205,13 @@ SDL_Texture* getCoverByStandaloneImage(char* _currentFilename){
 				}
 				#endif
 				if (errno!=0){
-					printf("Failure when reading directory entries, error %d\n",errno);
+					fprintf(stderr,"Failure when reading directory entries, errno %d\n",errno);
 				}
 				if (closedir(_songFolder)==-1){
-					printf("Failed to close dir\n");
+					fprintf(stderr,"Failed to close dir\n");
 				}
 			}else{
-				printf("Failed to open folder %s\n",_pathSongFolder);
+				fprintf(stderr,"Failed to open folder %s\n",_pathSongFolder);
 			}
 			#if SAMEASSONGNAMECOVER
 			if (_musicNoExtensionLen!=-1){
@@ -225,7 +225,7 @@ SDL_Texture* getCoverByStandaloneImage(char* _currentFilename){
 				break;
 			}
 		}else{
-			printf("Failed to get folder from path\n");
+			fprintf(stderr,"Failed to get folder from path\n");
 		}
 	}
 	// Load the cover image if found
@@ -239,11 +239,11 @@ SDL_Texture* getCoverByStandaloneImage(char* _currentFilename){
 		SDL_Surface* _tempSurface=IMG_Load(_fullFilename);
 		if (_tempSurface!=NULL){
 			if ((_ret = SDL_CreateTextureFromSurface(mainWindowRenderer,_tempSurface))==NULL){
-				printf("SDL_CreateTextureFromSurface failed\n");
+				fprintf(stderr,"SDL_CreateTextureFromSurface failed\n");
 			}
 			SDL_FreeSurface(_tempSurface);
 		}else{
-			printf("Failed to load %s with error %s\n",_fullFilename,IMG_GetError());
+			fprintf(stderr,"Failed to load %s with error %s\n",_fullFilename,IMG_GetError());
 		}
 		free(_fullFilename);
 		free(_gottenCoverFilename);
@@ -268,12 +268,12 @@ int main(int argc, char const *argv[]){
 	IMG_Init( IMG_INIT_JPG );
 	mainWindow = SDL_CreateWindow(WINDOWTITLE,SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,640,480,SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN );
 	if (!mainWindow){
-		printf("SDL_CreateWindow failed\n");
+		fprintf(stderr,"SDL_CreateWindow failed\n");
 		return 1;
 	}
 	mainWindowRenderer = SDL_CreateRenderer( mainWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 	if (!mainWindowRenderer){
-		printf("SDL_CreateRenderer failed.\n");
+		fprintf(stderr,"SDL_CreateRenderer failed.\n");
 		return 1;
 	}
 	unsigned int lastRefresh=0;
