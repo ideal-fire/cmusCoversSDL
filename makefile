@@ -20,3 +20,5 @@ clean:
 install: $(OUTNAME)
 	cp -f $(OUTNAME) "/usr/local/bin"
 	chmod 755 "/usr/local/bin/$(OUTNAME)"
+
+main.o: config.h
