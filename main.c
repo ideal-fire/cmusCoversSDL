@@ -374,7 +374,7 @@ int main(int argc, char const *argv[]){
 			fclose(_cmusRes);
 		}
 		// SDL says you must redraw everything every time you use SDL_RenderPresent
-		SDL_SetRenderDrawColor(mainWindowRenderer,255,255,255,255);
+		SDL_SetRenderDrawColor(mainWindowRenderer,BACKGROUNDCOLOR);
 		SDL_RenderClear(mainWindowRenderer);
 		if (_currentImage!=NULL){
 			SDL_Rect _srcRect;

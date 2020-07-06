@@ -63,3 +63,5 @@ char* const loadableExtensions[NUMEXTENSIONS] = {
 #define SAMEASSONGNAMECOVER 1
 // 1 if if you want the program to turn cue:// files into normal file paths
 #define STRIPCUE 1
+// Background/Border color
+#define BACKGROUNDCOLOR 0,0,0,255
