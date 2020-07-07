@@ -61,3 +61,7 @@ char* const loadableExtensions[NUMEXTENSIONS] = {
 #define FALLBACKRANDOM 1
 // 1 if you will allow a cover to a song to be the same filename as the song, just with an image extension. For example, bla.jpg as a cover for bla.wav.
 #define SAMEASSONGNAMECOVER 1
+// 1 if if you want the program to turn cue:// files into normal file paths
+#define STRIPCUE 1
+// Background/Border color
+#define BACKGROUNDCOLOR 0,0,0,255

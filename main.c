@@ -251,6 +251,23 @@ SDL_Texture* getCoverByStandaloneImage(char* _currentFilename){
 	free(_pathSongFolder);
 	return _ret;
 }
+int stripCueData(char* _currentFilename){ // returns 1 if something was stripped, 0 if not
+	// playing a .cue file puts "cue:///path/to/blah.cue/track-number" in cmus-remote -Q
+	// this function will strip this and just leave the file path
+	#define CUE_PREFIX "cue://"
+	if (_currentFilename == NULL) return 0;
+	int l = strlen(_currentFilename), cl = strlen(CUE_PREFIX), i;
+	if (l < cl || memcmp(_currentFilename, CUE_PREFIX, cl) != 0) return 0; // check if CUE file
+	for (i = 0; i < l-cl; ++i) _currentFilename[i] = _currentFilename[i + cl]; // get rid of CUE_PREFIX
+	char* c;
+	for (c = _currentFilename + l - cl - 1; c >= _currentFilename; --c) {
+		if (*c == '/') {
+			*c = '\0';
+			break;
+		}
+	}
+	return 1;
+}
 int main(int argc, char const *argv[]){
 	// Catch SIGUSR1. Use it as a signal to refresh
 	struct sigaction refreshsig;
@@ -320,6 +337,12 @@ int main(int argc, char const *argv[]){
 						if (_readFile[_cachedStrlen-1]=='\n'){
 							_readFile[--_cachedStrlen]='\0';
 						}
+
+						// Strip cue data if enabled
+						#ifdef STRIPCUE
+						stripCueData(_readFile);
+						#endif
+
 						// If the filename of the current song is different from the last one
 						if (_currentFilename==NULL || strcmp(_readFile,_currentFilename)!=0){
 							printf("Looking for art\n");
@@ -329,6 +352,7 @@ int main(int argc, char const *argv[]){
 							}
 							free(_currentFilename);
 							_currentFilename=_readFile;
+
 							// Try and get cover image using various ways
 							int i;
 							for (i=0;i<NUMCOVERGETTERS && ((_currentImage=coverGetters[i](_currentFilename))==NULL);++i);
@@ -350,7 +374,7 @@ int main(int argc, char const *argv[]){
 			fclose(_cmusRes);
 		}
 		// SDL says you must redraw everything every time you use SDL_RenderPresent
-		SDL_SetRenderDrawColor(mainWindowRenderer,0,0,0,255);
+		SDL_SetRenderDrawColor(mainWindowRenderer,BACKGROUNDCOLOR);
 		SDL_RenderClear(mainWindowRenderer);
 		if (_currentImage!=NULL){
 			SDL_Rect _srcRect;
