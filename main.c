@@ -251,7 +251,8 @@ SDL_Texture* getCoverByStandaloneImage(char* _currentFilename){
 	free(_pathSongFolder);
 	return _ret;
 }
-int stripCueData(char* _currentFilename){ // returns 1 if something was stripped, 0 if not
+int stripCuePrefix(char* _currentFilename){ // returns 1 if something was stripped, 0 if not
+	#if STRIPCUE == 1
 	// playing a .cue file puts "cue:///path/to/blah.cue/track-number" in cmus-remote -Q
 	// this function will strip this and just leave the file path
 	#define CUE_PREFIX "cue://"
@@ -261,12 +262,15 @@ int stripCueData(char* _currentFilename){ // returns 1 if something was stripped
 	for (i = 0; i < l-cl; ++i) _currentFilename[i] = _currentFilename[i + cl]; // get rid of CUE_PREFIX
 	char* c;
 	for (c = _currentFilename + l - cl - 1; c >= _currentFilename; --c) {
-		if (*c == '/') {
+		if (*c == DIRSEPARATORCHAR) {
 			*c = '\0';
 			break;
 		}
 	}
 	return 1;
+	#else
+	return 0;
+	#endif
 }
 int main(int argc, char const *argv[]){
 	// Catch SIGUSR1. Use it as a signal to refresh
@@ -337,12 +341,7 @@ int main(int argc, char const *argv[]){
 						if (_readFile[_cachedStrlen-1]=='\n'){
 							_readFile[--_cachedStrlen]='\0';
 						}
-
-						// Strip cue data if enabled
-						#ifdef STRIPCUE
-						stripCueData(_readFile);
-						#endif
-
+						stripCuePrefix(_readFile);
 						// If the filename of the current song is different from the last one
 						if (_currentFilename==NULL || strcmp(_readFile,_currentFilename)!=0){
 							printf("Looking for art\n");
