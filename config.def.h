@@ -12,8 +12,6 @@ char* const programArgs[] = {
 	"-Q",
 	NULL,
 };
-// Change this if you're using Windows
-#define DIRSEPARATORCHAR '/'
 /*
 Changes how the application waits for its next redraw
 0 - Wait using SDL_WaitEventTimeout. The application will redraw when the window receives events or when it checks for cmus updates. Recommended mode

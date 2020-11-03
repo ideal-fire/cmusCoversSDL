@@ -133,13 +133,13 @@ SDL_Texture* getCoverByStandaloneImage(char* _currentFilename){
 	// NOTE - If I give up the ability to have a cover file be the music filename just with image extension, I can store the last song as the last folder and not rescan the same folder again. Useful for those who play songs in order.
 	SDL_Texture* _ret=NULL;
 	// Find the folder of the song file by finding the last slash
-	char* _pathSongFolder=strdup(_currentFilename); // Once it contains a folder path, that folder path will end with DIRSEPARATORCHAR
+	char* _pathSongFolder=strdup(_currentFilename); // Once it contains a folder path, that folder path will end with /
 	int _currentSubDirUp=0;
 	char* _gottenCoverFilename=NULL;
 	for (_currentSubDirUp=0;_currentSubDirUp<=MAXDIRUP;++_currentSubDirUp){
 		int i;
-		for (i=strlen(_pathSongFolder)-2;i>=0;--i){ // Skip the ending char. This goes over either one char of the filename or the end DIRSEPARATORCHAR from the last path
-			if (_pathSongFolder[i]==DIRSEPARATORCHAR){
+		for (i=strlen(_pathSongFolder)-2;i>=0;--i){ // Skip the ending char. This goes over either one char of the filename or the end / from the last path
+			if (_pathSongFolder[i]=='/'){
 				_pathSongFolder[i+1]='\0';
 				break;
 			}
@@ -158,7 +158,7 @@ SDL_Texture* getCoverByStandaloneImage(char* _currentFilename){
 				_currentFilename[_musicNoExtensionLen]='\0';
 			}else{
 				fprintf(stderr,"No extension for %s\n",_currentFilename);
-			}										
+			}
 			#endif
 			// Find cover image in folder
 			DIR* _songFolder=opendir(_pathSongFolder);
@@ -262,7 +262,7 @@ int stripCuePrefix(char* _currentFilename){ // returns 1 if something was stripp
 	for (i = 0; i < l-cl; ++i) _currentFilename[i] = _currentFilename[i + cl]; // get rid of CUE_PREFIX
 	char* c;
 	for (c = _currentFilename + l - cl - 1; c >= _currentFilename; --c) {
-		if (*c == DIRSEPARATORCHAR) {
+		if (*c == '/') {
 			*c = '\0';
 			break;
 		}
@@ -273,6 +273,12 @@ int stripCuePrefix(char* _currentFilename){ // returns 1 if something was stripp
 	#endif
 }
 int main(int argc, char const *argv[]){
+	if (access(programArgs[0],X_OK)==-1){
+		fprintf(stderr,"%s is not executable\n",programArgs[0]);
+		perror(NULL);
+		return 1;
+	}
+
 	// Catch SIGUSR1. Use it as a signal to refresh
 	struct sigaction refreshsig;
 	memset(&refreshsig, 0, sizeof(refreshsig));
