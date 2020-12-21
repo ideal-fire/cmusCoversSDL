@@ -6,9 +6,9 @@
 //
 #define PIXELPADDING 5
 // Program arguments to get info from cmus-remote
-// You may need to change the path to /usr/bin/local if you installed cmus yourself
+// You can also put the full path to cmus-remote if you want
 char* const programArgs[] = {
-	"/usr/bin/cmus-remote",
+	"cmus-remote",
 	"-Q",
 	NULL,
 };

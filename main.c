@@ -72,7 +72,7 @@ FILE* goodpopen(char* const _args[]){
 		close(_crossFiles[0]); // Child does not ned to read
 		dup2(_crossFiles[1], STDOUT_FILENO); // make _crossFiles[1] be the same as STDOUT_FILENO
 		// First arg is the path of the file again
-		execv(_args[0],_args); // This will do this program and then end the child process
+		execvp(_args[0],_args); // This will do this program and then end the child process
 		exit(1); // This means execv failed
 	}
 
@@ -273,7 +273,7 @@ int stripCuePrefix(char* _currentFilename){ // returns 1 if something was stripp
 	#endif
 }
 int main(int argc, char const *argv[]){
-	if (access(programArgs[0],X_OK)==-1){
+	if (programArgs[0][0]=='/' && access(programArgs[0],X_OK)==-1){
 		fprintf(stderr,"%s is not executable\n",programArgs[0]);
 		perror(NULL);
 		return 1;
