@@ -1,8 +1,8 @@
 src = $(wildcard *.c)
 obj = $(src:.c=.o)
 
-# If you don't want to build with ffmpeg's libavformat, remove the last two lines.
-CFLAGS = -g -lSDL2 -lSDL2_image -D_has_libavformat -lavformat
+# If you don't want to build with ffmpeg's libavformat, remove everything on the line after (and including) "-D_has_libavformat"
+CFLAGS = -g `pkg-config --cflags --libs sdl2 SDL2_image` -D_has_libavformat `pkg-config --libs --cflags libavformat`
 OUTNAME = cmusCoverViewer
 
 all: config.h $(OUTNAME)
