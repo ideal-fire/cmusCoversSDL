@@ -22,4 +22,8 @@ install: $(OUTNAME)
 	chmod 755 "/usr/local/bin/$(OUTNAME)"
 	cp -f cmusv "/usr/local/bin"
 
+uninstall: $(OUTNAME)
+	rm -f "/usr/local/bin/$(OUTNAME)"
+	rm -f "/usr/local/bin/cmusv"
+
 main.o: config.h
