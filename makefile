@@ -20,5 +20,6 @@ clean:
 install: $(OUTNAME)
 	cp -f $(OUTNAME) "/usr/local/bin"
 	chmod 755 "/usr/local/bin/$(OUTNAME)"
+	cp -f cmusv "/usr/local/bin"
 
 main.o: config.h
