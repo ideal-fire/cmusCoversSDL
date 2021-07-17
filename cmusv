@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+cmusCoverViewer &> /dev/null &
+coverViewerPID=$!
+cmus
+kill $coverViewerPID
